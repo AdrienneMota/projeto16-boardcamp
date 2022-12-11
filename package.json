@@ -2,9 +2,10 @@
   "name": "projeto16-boardcamp",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "serve.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "npx nodemon src/serve.js"
   },
   "repository": {
     "type": "git",
@@ -16,5 +17,13 @@
   "bugs": {
     "url": "https://github.com/AdrienneMota/projeto16-boardcamp/issues"
   },
-  "homepage": "https://github.com/AdrienneMota/projeto16-boardcamp#readme"
+  "homepage": "https://github.com/AdrienneMota/projeto16-boardcamp#readme",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "pg": "^8.8.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.20"
+  }
 }
