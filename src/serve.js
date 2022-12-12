@@ -125,7 +125,6 @@ app.get('/games', async(req, res) => {
 })
 
 //clientes
-
 app.post('/customers', async (req, res) => {
     const customer = req.body
 
@@ -155,6 +154,23 @@ app.post('/customers', async (req, res) => {
         res.sendStatus(500)
     }
 
+})
+
+app.get('/customers/:id', async(req, res) => {
+    try {
+        const id = parseInt(req.params.id)
+
+        const customer = await connectiondb.query('SELECT * FROM customers WHERE id = $1;', [id])
+
+        if(customer.rows.length < 1){
+            return res.status(404).send({message: 'Id incorreto'})
+        }
+
+        res.send(customer.rows)
+    } catch (error) {
+        console.log(error)
+        res.sendStatus(500)
+    }
 })
 
 const port = process.env.PORT || 4000
