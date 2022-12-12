@@ -99,15 +99,23 @@ app.post('/games', async (req, res) => {
 
 })
 
-// app.get('/categories', async(req, res) => {
-//     try {
-//         const categories = await connectiondb.query('SELECT * FROM categories;')
-//         res.send(categories.rows)
-//     } catch (error) {
-//         console.log(error)
-//         res.sendStatus(500)
-//     }
-// })
+app.get('/games', async(req, res) => {
+    try {
+        const name = req.query.name
+
+        let query = ""
+
+        if(name){
+            query = `WHERE g.name ilike '%${name}%'`
+        }
+
+        const games = await connectiondb.query(`SELECT g.*, c.name "categoryName" FROM games g JOIN categories c ON c.id = g."categoryId" ${query};`)
+        res.send(games.rows)
+    } catch (error) {
+        console.log(error)
+        res.sendStatus(500)
+    }
+})
 
 const port = process.env.PORT || 4000
 app.listen(port, console.log(`Server is running in port: ${port}`))
