@@ -2,6 +2,7 @@ import express from "express"
 import pkg from "pg"
 import dotenv from "dotenv"
 import Joi from "joi"
+import dayjs from "dayjs"
 dotenv.config()
 const { Pool } = pkg
 
@@ -27,6 +28,12 @@ const customerSchema = Joi.object({
     phone: Joi.string().min(10).max(11),
     cpf: Joi.string().min(11).required(),
     birthday: Joi.string().min(1).required()    
+})
+
+const rentSchema = Joi.object({
+    customerId: Joi.number().integer().required(),
+    gameId: Joi.number().integer().required(),
+    daysRented: Joi.number().integer().greater(0).required()
 })
 
 //conexão com o banco   
@@ -172,6 +179,161 @@ app.get('/customers/:id', async(req, res) => {
         res.sendStatus(500)
     }
 })
+
+app.get('/customers', async(req, res) => {
+    try {
+        const customers = await connectiondb.query('SELECT * FROM customers;')
+
+        res.send(customers.rows)
+    } catch (error) {
+        console.log(error)
+        res.sendStatus(500)
+    }
+})
+
+app.put('/customers/:id', async(req, res) => {
+    const id = parseInt(req.params.id)
+    const customer = req.body
+    console.log(id)
+    try {
+        const { error } = customerSchema.validate(customer, {abortEarly: false})
+        if(error){
+            const erros = error.details.map((detail) => detail.message)
+            return res.status(400).send(erros)
+        }
+     
+        const cpfExist = await connectiondb.query("SELECT * FROM customers WHERE cpf = $1 AND id <> $2;", [customer.cpf, id])
+        if(cpfExist.rows.length > 0){
+            return res.status(409).send({message: 'O cpf do cliente informado já existe.'})
+        }
+
+        const {name, phone, cpf, birthday} = customer
+        console.log(customer)
+        await connectiondb.query(
+            'UPDATE customers SET name=$1, phone=$2, cpf=$3, birthday=$4 WHERE id=$5;', 
+            [name, phone, cpf, birthday, id]
+            )
+
+        res.sendStatus(200)
+    } catch (error) {
+        console.log(error)
+        res.sendStatus(500)
+    }  
+})
+
+//alugueis 
+//DELETE FROM customers WHERE id=1; 
+
+app.post('/rentals', async (req, res) => {
+    const rent = req.body
+
+    try {
+        const { error } = rentSchema.validate(rent, {abortEarly: false})
+        if(error){
+            const erros = error.details.map((detail) => detail.message)
+            return res.status(400).send(erros)
+        }
+
+        const customerIdExist = await connectiondb.query("SELECT * FROM customers WHERE id = $1;", [rent.customerId])
+        if(customerIdExist.rows.length < 1){
+            return res.status(400).send({message: 'O id do cliente não foi encontrado'})
+        }
+
+        const gameIdExist = await connectiondb.query("SELECT * FROM games WHERE id = $1;", [rent.gameId])
+        if(gameIdExist.rows.length < 1){
+            return res.status(400).send({message: 'O id game não foi encontrado'})
+        }
+
+        //verificar aluguel
+
+        const rentsgame = await connectiondb.query('SELECT COUNT(*) FROM rentals WHERE "gameId"=$1', [rent.gameId])
+        const stock = await connectiondb.query('SELECT "stockTotal" FROM games WHERE id=$1', [rent.gameId])
+        if(rentsgame>stock){
+            return res.status(400).send({message: "Não há jogos disponíveis para alugar."})
+        }        
+
+        //população dos demais campos
+
+        rent.rentDate = dayjs().format('YYYY-MM-DD')
+
+        const price = await connectiondb.query('SELECT "pricePerDay" FROM games WHERE id = $1;', [rent.gameId])
+        
+        rent.originalPrice = price.rows[0].pricePerDay * rent.daysRented
+
+        rent.returnDate = null
+
+        rent.delayFee = null
+
+        await connectiondb.query(
+            'INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee") VALUES ($1, $2, $3, $4, $5, $6, $7);', 
+            [rent.customerId, rent.gameId, rent.rentDate, rent.daysRented, rent.returnDate, rent.originalPrice, rent.delayFee]
+            )
+    
+        res.sendStatus(201)
+    } catch (error) {
+        console.log(error)
+        res.sendStatus(500)
+    }
+
+})
+
+app.get('/rentals', async(req, res) => {
+    try {
+        // const id = parseInt(req.params.id)
+
+        const customer = await connectiondb.query('SELECT * FROM rentals ;')
+
+        // if(customer.rows.length < 1){
+        //     return res.status(404).send({message: 'Id incorreto'})
+        // }
+
+        res.send(customer.rows)
+    } catch (error) {
+        console.log(error)
+        res.sendStatus(500)
+    }
+})
+
+// app.get('/customers', async(req, res) => {
+//     try {
+//         const customer = await connectiondb.query('SELECT * FROM customers;', [id])
+
+//         res.send(customer.rows)
+//     } catch (error) {
+//         console.log(error)
+//         res.sendStatus(500)
+//     }
+// })
+
+// app.put('/customers/:id', async(req, res) => {
+//     const id = parseInt(req.params.id)
+//     const customer = req.body
+//     console.log(id)
+//     try {
+//         const { error } = customerSchema.validate(customer, {abortEarly: false})
+//         if(error){
+//             const erros = error.details.map((detail) => detail.message)
+//             return res.status(400).send(erros)
+//         }
+     
+//         const cpfExist = await connectiondb.query("SELECT * FROM customers WHERE cpf = $1 AND id <> $2;", [customer.cpf, id])
+//         if(cpfExist.rows.length > 0){
+//             return res.status(409).send({message: 'O cpf do cliente informado já existe.'})
+//         }
+
+//         const {name, phone, cpf, birthday} = customer
+//         console.log(customer)
+//         await connectiondb.query(
+//             'UPDATE customers SET name=$1, phone=$2, cpf=$3, birthday=$4 WHERE id=$5;', 
+//             [name, phone, cpf, birthday, id]
+//             )
+
+//         res.sendStatus(200)
+//     } catch (error) {
+//         console.log(error)
+//         res.sendStatus(500)
+//     }  
+// })
 
 const port = process.env.PORT || 4000
 app.listen(port, console.log(`Server is running in port: ${port}`))
