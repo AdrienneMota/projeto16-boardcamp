@@ -222,8 +222,7 @@ app.put('/customers/:id', async(req, res) => {
 })
 
 //alugueis 
-//DELETE FROM customers WHERE id=1; 
-
+    
 app.post('/rentals', async (req, res) => {
     const rent = req.body
 
@@ -332,6 +331,69 @@ app.get('/rentals', async(req, res) => {
             }
         }))
         res.send(rentalShowMode)
+    } catch (error) {
+        console.log(error)
+        res.sendStatus(500)
+    }
+})
+
+app.post('/rentals/:id/return', async(req, res) => {
+    const rentalId = req.params.id
+    let delayFee 
+
+    try {
+        const rental = await connectiondb.query("SELECT * FROM rentals WHERE id = $1;", [rentalId])
+        if(rental.rows.length < 1){
+            return res.status(400).send({message: 'O id do aluguel não foi encontrado'})
+        }
+
+        const rentalAlreadyPay = await connectiondb.query('SELECT "returnDate" FROM rentals WHERE id = $1;', [rentalId])
+        if(rentalAlreadyPay.rows[0].returnDate){
+            return res.status(400).send({message: 'Este aluguel está pago'})
+        }
+
+        const returnDate = dayjs().locale("pt-br").format("YYYY-MM-DD");
+                
+        const dayslateExist = rental.rows.find(r => 
+            (Number(new Date().toLocaleDateString("pt-br").slice(0, 2))) -
+            (Number(r.rentDate.toLocaleDateString("pt-br").slice(0, 2))) > r.daysRented
+        );
+      
+        if (dayslateExist) {
+            const dayslate = (Number(new Date().toLocaleDateString("pt-br").slice(0, 2))) - dayslateExist.rentDate.toLocaleDateString("pt-br").slice(0, 2);
+            delayFee = (dayslate - dayslateExist.daysRented) * dayslateExist.originalPrice;
+        }else{
+            delayFee = 0
+        }
+
+        await connectiondb.query(`UPDATE rentals SET "returnDate" = $1, "delayFee" = $2 WHERE id = $3;`, [returnDate, delayFee, Number(rentalId)]);
+   
+        res.sendStatus(200)                 
+        
+    } catch (error) {
+        console.log(error)
+        res.sendStatus(500)
+    }
+})
+
+app.delete('/rentals/:id', async(req, res) => {
+    const rentalId = req.params.id
+
+    try {
+        const rental = await connectiondb.query("SELECT * FROM rentals WHERE id = $1;", [rentalId])
+        if(rental.rows.length < 1){
+            return res.status(404).send({message: 'O id do aluguel não foi encontrado'})
+        }
+
+        const rentalAlreadyPay = await connectiondb.query('SELECT "returnDate" FROM rentals WHERE id = $1;', [rentalId])
+        if(!(rentalAlreadyPay.rows[0].returnDate)){
+            return res.status(400).send({message: 'Este aluguel não está pago ainda'})
+        }
+
+        await connectiondb.query('DELETE FROM rentals WHERE id=$1', [rentalId])
+        
+        res.sendStatus(200)
+        
     } catch (error) {
         console.log(error)
         res.sendStatus(500)
