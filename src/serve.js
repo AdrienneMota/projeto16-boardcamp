@@ -279,61 +279,64 @@ app.post('/rentals', async (req, res) => {
 
 app.get('/rentals', async(req, res) => {
     try {
-        // const id = parseInt(req.params.id)
+        const gameId = req.query.gameId
+        const customerId = req.query.customerId
 
-        const customer = await connectiondb.query('SELECT * FROM rentals ;')
+        let query = ""
 
-        // if(customer.rows.length < 1){
-        //     return res.status(404).send({message: 'Id incorreto'})
-        // }
+        if(gameId){
+            query = `WHERE rentals."gameId" = ${gameId}`
+        }
+        
+        if(customerId){
+            query = `WHERE rentals."customerId" = ${customerId}`
+        }
 
-        res.send(customer.rows)
+        const rentals = await connectiondb.query(`
+            SELECT rentals.*,
+                customers.id AS "customer.id",
+                customers.name AS "customer.name",
+                games.id AS "game.id",
+                games.name AS "game.name",
+                games."categoryId" AS "game.categoryId",
+                categories.name AS "game.categoryName"
+            FROM
+                rentals
+            JOIN
+                customers ON rentals."customerId" = customers.id
+            JOIN
+                games ON rentals."gameId" = games.id
+            JOIN
+                categories ON games."categoryId" = categories.id
+            ${query}
+        `)
+
+        const rentalShowMode = rentals?.rows.map( (r) => ({
+            id: r.id,
+            customerId: r.customerId,
+            gameId: r.gameId,
+            rentDate: r.rentDate,
+            daysRented: r.daysRented,
+            returnDate: r.returnDate,
+            originalPrice: r.originalPrice,
+            delayFee: r.delayFee,
+            customer: {
+                id: r['customer.id'],
+                name: r['customer.name']
+            },
+            game:{
+                id:r['game.id'],
+                name: r['game.game'],
+                categoryId: r['game.categoryId'],
+                categoryName: r['game.categoryName']
+            }
+        }))
+        res.send(rentalShowMode)
     } catch (error) {
         console.log(error)
         res.sendStatus(500)
     }
 })
-
-// app.get('/customers', async(req, res) => {
-//     try {
-//         const customer = await connectiondb.query('SELECT * FROM customers;', [id])
-
-//         res.send(customer.rows)
-//     } catch (error) {
-//         console.log(error)
-//         res.sendStatus(500)
-//     }
-// })
-
-// app.put('/customers/:id', async(req, res) => {
-//     const id = parseInt(req.params.id)
-//     const customer = req.body
-//     console.log(id)
-//     try {
-//         const { error } = customerSchema.validate(customer, {abortEarly: false})
-//         if(error){
-//             const erros = error.details.map((detail) => detail.message)
-//             return res.status(400).send(erros)
-//         }
-     
-//         const cpfExist = await connectiondb.query("SELECT * FROM customers WHERE cpf = $1 AND id <> $2;", [customer.cpf, id])
-//         if(cpfExist.rows.length > 0){
-//             return res.status(409).send({message: 'O cpf do cliente informado já existe.'})
-//         }
-
-//         const {name, phone, cpf, birthday} = customer
-//         console.log(customer)
-//         await connectiondb.query(
-//             'UPDATE customers SET name=$1, phone=$2, cpf=$3, birthday=$4 WHERE id=$5;', 
-//             [name, phone, cpf, birthday, id]
-//             )
-
-//         res.sendStatus(200)
-//     } catch (error) {
-//         console.log(error)
-//         res.sendStatus(500)
-//     }  
-// })
 
 const port = process.env.PORT || 4000
 app.listen(port, console.log(`Server is running in port: ${port}`))
